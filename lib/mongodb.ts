@@ -13,23 +13,15 @@ function sanitizeUri(raw: string | undefined): string | undefined {
   return uri
 }
 
-const URI_REGEX = /^mongodb(\+srv)?:\/\//
-
-// On accepte MONGODB_URI ou MONGODB_URI_2 et on garde la première valeur
-// qui ressemble réellement à une chaîne de connexion MongoDB valide.
-// Cela évite qu'un placeholder (ex: "process.env.MONGODB_URI_2") casse la connexion.
-const candidates = [
-  { name: "MONGODB_URI", value: sanitizeUri(process.env.MONGODB_URI) },
-  { name: "MONGODB_URI_2", value: sanitizeUri(process.env.MONGODB_URI_2) },
-]
-
-const MONGODB_URI = candidates.find((c) => c.value && URI_REGEX.test(c.value))?.value
+const MONGODB_URI = sanitizeUri(process.env.MONGODB_URI)
 
 if (!MONGODB_URI) {
+  throw new Error("La variable d'environnement MONGODB_URI n'est pas définie.")
+}
+
+if (!/^mongodb(\+srv)?:\/\//.test(MONGODB_URI)) {
   throw new Error(
-    "Aucune chaîne de connexion MongoDB valide trouvée. " +
-      "Définissez MONGODB_URI (ou MONGODB_URI_2) avec une valeur commençant par " +
-      "'mongodb://' ou 'mongodb+srv://'. " +
+    "MONGODB_URI invalide : la chaîne doit commencer par 'mongodb://' ou 'mongodb+srv://'. " +
       "Exemple : mongodb+srv://utilisateur:motdepasse@cluster0.xxxxx.mongodb.net/fretdepot",
   )
 }
