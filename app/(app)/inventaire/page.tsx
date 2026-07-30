@@ -8,10 +8,11 @@ import { StatCard } from "@/components/shared/stat-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { InventaireFormDialog } from "@/components/inventaire/inventaire-form-dialog"
+import { InventaireDetailDialog } from "@/components/inventaire/inventaire-detail-dialog"
 import { useCollection } from "@/lib/use-api"
 import { api } from "@/lib/api-client"
 import type { SessionInventaire, Depot, StockItem } from "@/lib/types"
-import { ClipboardCheck, Clock, CheckCircle2, AlertTriangle, Plus } from "lucide-react"
+import { ClipboardCheck, Clock, CheckCircle2, AlertTriangle, Plus, Eye } from "lucide-react"
 
 const statutConfig: Record<SessionInventaire["statut"], { label: string; className: string }> = {
   en_cours: { label: "En cours", className: "bg-info/15 text-info" },
@@ -25,6 +26,7 @@ export default function InventairePage() {
   const { data: stocks } = useCollection<StockItem>("stocks")
 
   const [formOpen, setFormOpen] = useState(false)
+  const [detailSession, setDetailSession] = useState<SessionInventaire | null>(null)
 
   const handleSubmit = async (data: Omit<SessionInventaire, "id">) => {
     try {
@@ -117,6 +119,12 @@ export default function InventairePage() {
           { key: "depot", label: "Dépôt", options: depots.map((d) => ({ value: d.nom, label: d.nom })) },
         ]}
         emptyMessage="Aucune session d'inventaire."
+        actions={(row) => (
+          <Button variant="outline" size="sm" onClick={() => setDetailSession(row)}>
+            <Eye className="size-4" />
+            Détails
+          </Button>
+        )}
       />
 
       <InventaireFormDialog
@@ -125,6 +133,12 @@ export default function InventairePage() {
         depots={depots}
         stocks={stocks}
         onSubmit={handleSubmit}
+      />
+
+      <InventaireDetailDialog
+        open={detailSession !== null}
+        onOpenChange={(open) => !open && setDetailSession(null)}
+        session={detailSession}
       />
     </div>
   )
