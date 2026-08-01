@@ -8,14 +8,27 @@ import { useCollection } from "@/lib/use-api"
 import type { StockItem, Zone } from "@/lib/types"
 import { Boxes, Weight, AlertTriangle, Clock } from "lucide-react"
 
+// Calcule la durée de stockage (en jours) à partir des données MongoDB.
+// Utilise dureeStockage si présent, sinon la date de création (createdAt).
+function getDureeStockage(s: StockItem): number {
+  if (typeof s.dureeStockage === "number") return s.dureeStockage
+  if (s.createdAt) {
+    const jours = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 86_400_000)
+    return jours >= 0 ? jours : 0
+  }
+  return 0
+}
+
 export default function StocksPage() {
   const { data: stocks } = useCollection<StockItem>("stocks")
   const { data: zones } = useCollection<Zone>("zones")
 
-  const enStock = stocks.filter((s) => s.statut === "en_stock").length
-  const poidsTotal = Math.round(stocks.reduce((acc, s) => acc + s.poids, 0))
-  const bloques = stocks.filter((s) => s.statut === "bloque").length
-  const anciens = stocks.filter((s) => s.dureeStockage > 30).length
+  const stocksAvecDuree = stocks.map((s) => ({ ...s, dureeStockage: getDureeStockage(s) }))
+
+  const enStock = stocksAvecDuree.filter((s) => s.statut === "en_stock").length
+  const poidsTotal = Math.round(stocksAvecDuree.reduce((acc, s) => acc + (s.poids ?? 0), 0))
+  const bloques = stocksAvecDuree.filter((s) => s.statut === "bloque").length
+  const anciens = stocksAvecDuree.filter((s) => s.dureeStockage > 30).length
 
   const columns: Column<StockItem>[] = [
     { key: "awb", header: "AWB", render: (r) => <span className="font-mono text-xs">{r.awb}</span> },
@@ -54,7 +67,7 @@ export default function StocksPage() {
 
       <DataTable
         columns={columns}
-        data={stocks}
+        data={stocksAvecDuree}
         searchKeys={["awb", "colis", "description", "emplacement"]}
         searchPlaceholder="Rechercher par AWB, colis, marchandise..."
         filters={[

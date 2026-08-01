@@ -34,8 +34,10 @@ export interface StockItem {
   depot: string
   zone: string
   emplacement: string
-  dureeStockage: number // en jours
+  dureeStockage?: number // en jours (calculé à partir de createdAt si absent)
   statut: StatutEntree
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Depot {
