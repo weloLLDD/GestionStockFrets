@@ -1,16 +1,12 @@
 "use client"
 
-import { useState } from "react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type Column } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
-import { StockFormDialog } from "@/components/stocks/stock-form-dialog"
 import { useCollection } from "@/lib/use-api"
-import { api } from "@/lib/api-client"
-import type { Depot, StockItem, Zone } from "@/lib/types"
-import { Boxes, Weight, AlertTriangle, Clock, Plus } from "lucide-react"
+import type { StockItem, Zone } from "@/lib/types"
+import { Boxes, Weight, AlertTriangle, Clock } from "lucide-react"
 
 // Calcule la durée de stockage (en jours) à partir des données MongoDB.
 // Utilise dureeStockage si présent, sinon la date de création (createdAt).
@@ -24,15 +20,8 @@ function getDureeStockage(s: StockItem): number {
 }
 
 export default function StocksPage() {
-  const { data: stocks, mutate } = useCollection<StockItem>("stocks")
+  const { data: stocks } = useCollection<StockItem>("stocks")
   const { data: zones } = useCollection<Zone>("zones")
-  const { data: depots } = useCollection<Depot>("depots")
-  const [formOpen, setFormOpen] = useState(false)
-
-  const handleCreate = async (stock: Omit<StockItem, "id">) => {
-    await api.create("stocks", stock)
-    await mutate()
-  }
 
   const stocksAvecDuree = stocks.map((s) => ({ ...s, dureeStockage: getDureeStockage(s) }))
 
@@ -65,14 +54,8 @@ export default function StocksPage() {
     <div>
       <PageHeader
         title="Gestion des Stocks"
-        description="État en temps réel des colis présents dans les dépôts."
+        description="État en temps réel, calculé à partir des entrées de fret moins les sorties validées."
         breadcrumb={[{ label: "Opérations" }, { label: "Gestion des Stocks" }]}
-        actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="size-4" />
-            Nouveau colis
-          </Button>
-        }
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -100,14 +83,6 @@ export default function StocksPage() {
           { key: "zone", label: "Zone", options: zones.map((z) => ({ value: z.nom, label: z.nom })) },
         ]}
         emptyMessage="Aucun colis en stock."
-      />
-
-      <StockFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        depots={depots}
-        zones={zones}
-        onSubmit={handleCreate}
       />
     </div>
   )
