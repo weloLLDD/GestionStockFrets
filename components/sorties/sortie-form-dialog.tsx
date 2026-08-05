@@ -34,6 +34,7 @@ interface SortieFormDialogProps {
 const empty: Omit<SortieFret, "id"> = {
   awb: "",
   colis: "",
+  nombreColis: 1,
   destinataire: "",
   date: "2026-07-20",
   heure: "09:00",
@@ -95,6 +96,7 @@ export function SortieFormDialog({ open, onOpenChange, initial, onSubmit }: Sort
       ...prev,
       awb: e.awb,
       colis: e.numeroColis,
+      nombreColis: e.nombreColis,
       destinataire: e.destinataire,
     }))
   }
@@ -227,6 +229,23 @@ export function SortieFormDialog({ open, onOpenChange, initial, onSubmit }: Sort
                   onChange={(e) => set("destinataire", e.target.value)}
                   placeholder="TransLog SARL"
                 />
+              </div>
+
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="nombreColis">Nombre de colis à sortir</Label>
+                <Input
+                  id="nombreColis"
+                  type="number"
+                  min={1}
+                  max={selected?.nombreColis}
+                  value={form.nombreColis}
+                  onChange={(e) => set("nombreColis", Math.max(1, Number(e.target.value) || 1))}
+                />
+                {selected ? (
+                  <p className="text-xs text-muted-foreground">
+                    {selected.nombreColis} colis disponibles pour ce fret.
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-2">

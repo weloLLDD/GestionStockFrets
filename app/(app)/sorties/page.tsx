@@ -24,6 +24,11 @@ export default function SortiesPage() {
   const columns: Column<SortieFret>[] = [
     { key: "awb", header: "AWB", render: (r) => <span className="font-mono text-xs">{r.awb}</span> },
     { key: "colis", header: "Colis", render: (r) => <span className="font-medium">{r.colis}</span> },
+    {
+      key: "nombreColis",
+      header: "Nb colis",
+      render: (r) => <span className="tabular-nums">{r.nombreColis ?? "—"}</span>,
+    },
     { key: "destinataire", header: "Destinataire" },
     { key: "date", header: "Date", render: (r) => `${r.date} · ${r.heure}` },
     { key: "agent", header: "Agent" },

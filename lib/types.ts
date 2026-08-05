@@ -71,6 +71,7 @@ export interface SortieFret {
   id: string
   awb: string
   colis: string
+  nombreColis: number
   destinataire: string
   date: string
   heure: string

@@ -44,6 +44,7 @@ const EntreeSchema = makeSchema({
 const SortieSchema = makeSchema({
   awb: { type: String, required: true },
   colis: String,
+  nombreColis: { type: Number, default: 1 },
   date: String,
   heure: String,
   destinataire: String,
