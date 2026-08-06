@@ -1,25 +1,19 @@
 "use client"
 
+import { useMemo } from "react"
 import { PageHeader } from "@/components/shared/page-header"
 import { ReportView, type ReportColumn } from "@/components/rapports/report-view"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { entrees, sorties, mouvements } from "@/lib/mock-data"
+import { useCollection } from "@/lib/use-api"
 import type { EntreeFret, SortieFret, Mouvement } from "@/lib/types"
 
-// Index des entrées par AWB pour retrouver nb colis / poids / compagnie
-const entreeParAwb = new Map<string, EntreeFret>()
-entrees.forEach((e) => {
-  if (!entreeParAwb.has(e.awb)) entreeParAwb.set(e.awb, e)
-})
-
-// Date de référence pour le calcul de durée de stockage (frontend)
-const AUJOURDHUI = new Date("2026-07-21")
-
-function joursDepuis(dateStr: string): number {
+function joursDepuis(dateStr: string, aujourdhui: Date): number {
+  if (!dateStr) return 0
   const d = new Date(dateStr)
-  const diff = AUJOURDHUI.getTime() - d.getTime()
+  if (Number.isNaN(d.getTime())) return 0
+  const diff = aujourdhui.getTime() - d.getTime()
   return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)))
 }
 
@@ -61,20 +55,9 @@ const colonnesEntrees: ReportColumn<EntreeFret>[] = [
 
 // ---- Rapport 2 : Sorties ----
 interface LigneSortie extends SortieFret {
-  nombreColis: number
   poids: number
   compagnie: string
 }
-
-const donneesSorties: LigneSortie[] = sorties.map((s) => {
-  const e = entreeParAwb.get(s.awb)
-  return {
-    ...s,
-    nombreColis: e?.nombreColis ?? 0,
-    poids: e?.poids ?? 0,
-    compagnie: e?.compagnie ?? "—",
-  }
-})
 
 const colonnesSorties: ReportColumn<LigneSortie>[] = [
   { header: "Date", value: (r) => r.date },
@@ -104,19 +87,6 @@ interface LigneDuree {
   jours: number
   statut: EntreeFret["statut"]
 }
-
-const donneesDuree: LigneDuree[] = entrees
-  .filter((e) => e.statut === "en_stock" || e.statut === "en_attente" || e.statut === "bloque")
-  .map((e) => ({
-    awb: e.awb,
-    colis: e.numeroColis,
-    compagnie: e.compagnie,
-    zone: e.zone,
-    dateArrivee: e.dateArrivee,
-    jours: joursDepuis(e.dateArrivee),
-    statut: e.statut,
-  }))
-  .sort((a, b) => b.jours - a.jours)
 
 const colonnesDuree: ReportColumn<LigneDuree>[] = [
   { header: "AWB", value: (r) => r.awb },
@@ -152,36 +122,6 @@ const colonnesDuree: ReportColumn<LigneDuree>[] = [
   },
 ]
 
-// ---- Rapport : Colis actuellement en dépôt ----
-const enDepot: EntreeFret[] = entrees.filter(
-  (e) => e.statut === "en_stock" || e.statut === "en_attente" || e.statut === "bloque",
-)
-
-const colonnesEnDepot: ReportColumn<EntreeFret>[] = [
-  { header: "N° AWB", value: (r) => r.awb },
-  { header: "N° Colis", value: (r) => r.numeroColis },
-  { header: "Expéditeur", value: (r) => r.expediteur },
-  { header: "Destinataire", value: (r) => r.destinataire },
-  { header: "Compagnie", value: (r) => r.compagnie },
-  { header: "Vol", value: (r) => r.vol },
-  { header: "Nature du fret", value: (r) => r.description },
-  { header: "Date arrivée", value: (r) => r.dateArrivee },
-  {
-    header: "Durée en dépôt",
-    value: (r) => joursDepuis(r.dateArrivee),
-    align: "right",
-    render: (r) => <span className="tabular-nums">{joursDepuis(r.dateArrivee)} j</span>,
-  },
-  { header: "Emplacement (Zone / Rack)", value: (r) => `${r.zone} · ${r.emplacement}` },
-  { header: "Nb colis", value: (r) => r.nombreColis, align: "right", total: true },
-  { header: "Poids (kg)", value: (r) => r.poids, align: "right", total: true, totalUnit: "kg" },
-  {
-    header: "Statut",
-    value: (r) => r.statut,
-    render: (r) => <StatusBadge status={r.statut} />,
-  },
-]
-
 // ---- Rapport : Traçabilité complète des mouvements ----
 const OPERATIONS: Record<Mouvement["type"], string> = {
   entree: "Entrée",
@@ -202,6 +142,84 @@ const colonnesTracabilite: ReportColumn<Mouvement>[] = [
 ]
 
 export default function RapportsPage() {
+  const { data: entrees } = useCollection<EntreeFret>("entrees")
+  const { data: sorties } = useCollection<SortieFret>("sorties")
+  const { data: mouvements } = useCollection<Mouvement>("mouvements")
+
+  // Index des entrées par AWB pour retrouver poids / compagnie côté sorties
+  const entreeParAwb = useMemo(() => {
+    const map = new Map<string, EntreeFret>()
+    entrees.forEach((e) => {
+      if (!map.has(e.awb)) map.set(e.awb, e)
+    })
+    return map
+  }, [entrees])
+
+  const donneesSorties: LigneSortie[] = useMemo(
+    () =>
+      sorties.map((s) => {
+        const e = entreeParAwb.get(s.awb)
+        return {
+          ...s,
+          poids: e?.poids ?? 0,
+          compagnie: e?.compagnie ?? "—",
+        }
+      }),
+    [sorties, entreeParAwb],
+  )
+
+  const donneesDuree: LigneDuree[] = useMemo(() => {
+    const aujourdhui = new Date()
+    return entrees
+      .filter((e) => e.statut === "en_stock" || e.statut === "en_attente" || e.statut === "bloque")
+      .map((e) => ({
+        awb: e.awb,
+        colis: e.numeroColis,
+        compagnie: e.compagnie,
+        zone: e.zone,
+        dateArrivee: e.dateArrivee,
+        jours: joursDepuis(e.dateArrivee, aujourdhui),
+        statut: e.statut,
+      }))
+      .sort((a, b) => b.jours - a.jours)
+  }, [entrees])
+
+  const enDepot: EntreeFret[] = useMemo(
+    () =>
+      entrees.filter(
+        (e) => e.statut === "en_stock" || e.statut === "en_attente" || e.statut === "bloque",
+      ),
+    [entrees],
+  )
+
+  const colonnesEnDepot: ReportColumn<EntreeFret>[] = useMemo(() => {
+    const aujourdhui = new Date()
+    return [
+      { header: "N° AWB", value: (r) => r.awb },
+      { header: "N° Colis", value: (r) => r.numeroColis },
+      { header: "Expéditeur", value: (r) => r.expediteur },
+      { header: "Destinataire", value: (r) => r.destinataire },
+      { header: "Compagnie", value: (r) => r.compagnie },
+      { header: "Vol", value: (r) => r.vol },
+      { header: "Nature du fret", value: (r) => r.description },
+      { header: "Date arrivée", value: (r) => r.dateArrivee },
+      {
+        header: "Durée en dépôt",
+        value: (r) => joursDepuis(r.dateArrivee, aujourdhui),
+        align: "right",
+        render: (r) => <span className="tabular-nums">{joursDepuis(r.dateArrivee, aujourdhui)} j</span>,
+      },
+      { header: "Emplacement (Zone / Rack)", value: (r) => `${r.zone} · ${r.emplacement}` },
+      { header: "Nb colis", value: (r) => r.nombreColis, align: "right", total: true },
+      { header: "Poids (kg)", value: (r) => r.poids, align: "right", total: true, totalUnit: "kg" },
+      {
+        header: "Statut",
+        value: (r) => r.statut,
+        render: (r) => <StatusBadge status={r.statut} />,
+      },
+    ]
+  }, [])
+
   return (
     <div>
       <PageHeader
